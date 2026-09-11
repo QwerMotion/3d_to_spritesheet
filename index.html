@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PixRig — 2D Sprite Animation Tool</title>
+<style>
+  :root {
+    --bg: #16171b;
+    --panel: #1d1f25;
+    --panel2: #23252c;
+    --border: #2e313a;
+    --text: #d8dbe2;
+    --text-dim: #8b8f9a;
+    --accent: #4f8cff;
+    --accent-soft: #2c3d5f;
+    --red: #e05656;
+    --green: #4fb477;
+    --amber: #d9a24f;
+    --cell-w: 26px;
+    --row-h: 34px;
+    --head-w: 172px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.4 system-ui, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) { background: #2b2e37; border-color: #3a3e49; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover:not(:disabled) { background: #5f97ff; }
+  button.danger { color: var(--red); }
+  input[type=number], input[type=text] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 2px 5px;
+    color: var(--text);
+    min-width: 0;
+  }
+  input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  .iconbtn { width: 26px; padding: 3px 0; text-align: center; }
+  .toolbar {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .brand { font-weight: 700; letter-spacing: .3px; margin-right: 4px; }
+  .brand em { font-style: normal; color: var(--accent); }
+  .spacer { flex: 1; }
+  .sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+  main { flex: 1; display: flex; min-height: 0; }
+  .pane { display: flex; flex-direction: column; min-height: 0; }
+  #left-pane { width: 46%; min-width: 380px; border-right: 1px solid var(--border); }
+  #center-pane { flex: 1; min-width: 240px; }
+  #right-pane { width: 292px; border-left: 1px solid var(--border); overflow-y: auto; background: var(--panel); flex-shrink: 0; }
+
+  /* ---- animation tabs ---- */
+  .tabs { display: flex; align-items: stretch; background: var(--panel); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .tabs-scroll { display: flex; overflow-x: auto; flex: 1; min-width: 0; }
+  .tab {
+    padding: 7px 12px;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    white-space: nowrap;
+    color: var(--text-dim);
+    user-select: none;
+  }
+  .tab.active { background: var(--panel2); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+  .tab:hover { color: var(--text); }
+  .tab .del { margin-left: 6px; color: var(--text-dim); }
+  .tab .del:hover { color: var(--red); }
+  .tab-add { padding: 7px 12px; cursor: pointer; color: var(--accent); border-right: 1px solid var(--border); user-select: none; }
+
+  /* ---- timeline ---- */
+  #timeline { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .tl-scroll { flex: 1; overflow: auto; position: relative; background: var(--panel); }
+  .tl-inner { position: relative; width: max-content; min-width: 100%; }
+  .tl-ruler-row { position: sticky; top: 0; z-index: 8; height: 22px; border-bottom: 1px solid var(--border); background: var(--panel2); display: flex; align-items: flex-end; }
+  .tl-corner { position: sticky; left: 0; z-index: 10; width: var(--head-w); height: 22px; background: var(--panel2); border-right: 1px solid var(--border); display: flex; align-items: center; padding: 0 8px; color: var(--text-dim); font-size: 11px; user-select: none; }
+  .tl-ruler-cells { position: relative; height: 22px; flex: 1; cursor: ew-resize; user-select: none; }
+  .tl-ruler-num { position: absolute; bottom: 3px; font-size: 10px; color: var(--text-dim); transform: translateX(-50%); pointer-events: none; }
+  .tl-playhead-tri { position: absolute; top: 1px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid var(--red); transform: translateX(-50%); pointer-events: none; z-index: 9; }
+  .tl-part-row { position: relative; height: var(--row-h); border-bottom: 1px solid var(--border); display: flex; }
+  .tl-part-row.sel { background: rgba(79,140,255,.07); }
+  .tl-head {
+    position: sticky; left: 0; z-index: 6; width: var(--head-w); background: var(--panel2);
+    border-right: 1px solid var(--border); display: flex; align-items: center; gap: 6px; padding: 0 6px; cursor: pointer; user-select: none; flex-shrink: 0;
+  }
+  .tl-head .thumb { width: 26px; height: 26px; image-rendering: pixelated; background: repeating-conic-gradient(#23252c 0 25%, #1b1d22 0 50%) 0 0 / 8px 8px; border: 1px solid var(--border); flex-shrink: 0; }
+  .tl-head .pname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+  .tl-head .zbtns { display: flex; flex-direction: column; }
+  .tl-head .zbtns button { width: 18px; height: 11px; line-height: 8px; padding: 0; font-size: 8px; }
+  .tl-cells { position: relative; flex: 1; cursor: crosshair; user-select: none;
+    background-image: linear-gradient(to right, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: var(--cell-w) 100%;
+  }
+  .tl-cells.selrow { background-color: rgba(79,140,255,.05); }
+  .kf-line { position: absolute; height: 2px; background: var(--accent-soft); top: calc(var(--row-h) / 2 - 1px); pointer-events: none; }
+  .kf {
+    position: absolute; width: 12px; height: 12px; top: calc(var(--row-h) / 2 - 6px);
+    transform: rotate(45deg); border: 1.5px solid var(--accent); background: var(--panel2);
+    cursor: grab; pointer-events: auto; z-index: 3;
+  }
+  .kf:hover { background: var(--accent-soft); }
+  .kf.sel { background: var(--accent); border-color: #9fc0ff; box-shadow: 0 0 0 2px rgba(79,140,255,.35); }
+  .kf.ghost { opacity: .4; }
+  .tl-playhead-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--red); pointer-events: none; z-index: 7; }
+
+  /* ---- center pane / preview ---- */
+  .pv-toolbar { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: var(--panel); border-bottom: 1px solid var(--border); flex-wrap: wrap; flex-shrink: 0; }
+  .pv-toolbar .lbl { color: var(--text-dim); font-size: 11px; }
+  #preview-wrap { flex: 1; position: relative; min-height: 0; overflow: hidden; background: #101115; }
+  #preview { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+  #preview.panning { cursor: grabbing; }
+  #welcome {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 20px;
+  }
+  #welcome[hidden] { display: none; }
+  #welcome h2 { margin: 0 0 4px; }
+  #welcome p { color: var(--text-dim); max-width: 420px; margin: 2px 0; }
+  .btnrow { display: flex; gap: 8px; margin-top: 8px; }
+
+  /* ---- inspector ---- */
+  .card { border-bottom: 1px solid var(--border); padding: 10px; }
+  .card h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--text-dim); }
+  .field { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+  .field label { width: 74px; color: var(--text-dim); font-size: 12px; flex-shrink: 0; }
+  .field input { flex: 1; width: 100%; }
+  .field .hint { color: var(--text-dim); font-size: 11px; flex: 1; }
+  .fieldrow { display: flex; gap: 6px; }
+  .fieldrow .field { flex: 1; }
+  .btnrow2 { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .kv { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); margin: 2px 0; }
+  .kv b { color: var(--text); font-weight: 500; }
+
+  /* ---- modal ---- */
+  #modal-root { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.55); z-index: 100; }
+  #modal-root.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px; min-width: 320px; max-width: 92vw; max-height: 90vh; display: flex; flex-direction: column;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  .modal h2 { margin: 0; padding: 12px 16px; font-size: 14px; border-bottom: 1px solid var(--border); }
+  .modal-body { padding: 14px 16px; overflow-y: auto; }
+  .modal-foot { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+  .modal .field label { width: 110px; }
+  .export-prev { display: flex; gap: 12px; margin-top: 10px; align-items: flex-start; }
+  .export-prev .thumb-box { border: 1px solid var(--border); background: #101115; padding: 6px; }
+  .export-prev canvas { image-rendering: pixelated; display: block; }
+  .export-prev .thumb-box .cap { color: var(--text-dim); font-size: 11px; margin-top: 4px; }
+  #drop-overlay {
+    position: fixed; inset: 0; z-index: 200; display: none; align-items: center; justify-content: center;
+    background: rgba(79,140,255,.12); border: 3px dashed var(--accent); font-size: 18px; pointer-events: none;
+  }
+  #drop-overlay.show { display: flex; }
+  .hint-text { color: var(--text-dim); font-size: 11px; margin-top: 6px; }
+  .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; z-index: 300; font-size: 12px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  input[type=checkbox] { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="toolbar">
+  <span class="brand">Pix<em>Rig</em></span>
+  <input id="project-name" type="text" size="14" title="Project name">
+  <span class="sep"></span>
+  <button id="btn-undo" title="Undo (Ctrl+Z)">↶</button>
+  <button id="btn-redo" title="Redo (Ctrl+Shift+Z)">↷</button>
+  <span class="sep"></span>
+  <button id="btn-import" title="Import textures as new parts (PNG with alpha)">＋ Import textures</button>
+  <button id="btn-demo" title="Load the demo sheep rig with walk/idle animations">🐑 Demo sheep</button>
+  <span class="spacer"></span>
+  <button id="btn-open" title="Open project (Ctrl+O)">Open…</button>
+  <button id="btn-save" title="Save project (Ctrl+S)">Save</button>
+  <button id="btn-export" class="primary" title="Export sprite sheet">Export…</button>
+  <input type="file" id="file-textures" accept="image/*" multiple hidden>
+  <input type="file" id="file-project" accept=".json,application/json,.pixrig.json" hidden>
+</header>
+
+<main>
+  <!-- LEFT: animation tabs + timeline -->
+  <section class="pane" id="left-pane">
+    <div class="tabs">
+      <div class="tabs-scroll" id="anim-tabs"></div>
+      <div class="tab-add" id="tab-add" title="New animation">＋</div>
+    </div>
+    <div id="timeline">
+      <div class="tl-scroll" id="tl-scroll">
+        <div class="tl-inner" id="tl-inner">
+          <div class="tl-ruler-row" id="tl-ruler-row">
+            <div class="tl-corner">Frame</div>
+            <div class="tl-ruler-cells" id="tl-ruler-cells"></div>
+          </div>
+          <div id="tl-rows"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CENTER: preview -->
+  <section class="pane" id="center-pane">
+    <div class="pv-toolbar" id="pv-toolbar">
+      <button id="btn-frame0" title="Go to frame 0">⏮</button>
+      <button id="btn-prev" title="Previous frame">◀</button>
+      <button id="btn-play" title="Play / pause (Space)">▶</button>
+      <button id="btn-next" title="Next frame">▶|</button>
+      <button id="btn-stop" title="Stop (pause + frame 0)">⏹</button>
+      <span class="lbl">Frame</span>
+      <input id="frame-input" type="number" min="0" step="1" style="width:52px">
+      <span class="lbl" id="frame-readout"></span>
+      <span class="sep"></span>
+      <button id="btn-zoom-out" title="Zoom out">−</button>
+      <button id="btn-zoom-in" title="Zoom in">＋</button>
+      <button id="btn-zoom-fit" title="Fit to view">Fit</button>
+      <span class="lbl" id="zoom-readout"></span>
+      <span class="sep"></span>
+      <label class="lbl" title="Show previous/next frame ghosts"><input type="checkbox" id="onion-toggle"> Onion</label>
+      <label class="lbl" title="Show canvas-size guide"><input type="checkbox" id="guide-toggle" checked> Guide</label>
+    </div>
+    <div id="preview-wrap">
+      <canvas id="preview"></canvas>
+      <div id="welcome" hidden>
+        <h2>Welcome to PixRig</h2>
+        <p>Import a few PNG textures, arrange them into a rig, keyframe position &amp; rotation on a grid timeline, and export a sprite sheet.</p>
+        <p class="hint-text" style="margin:0">Shortcuts: Space play · Delete keyframe · Ctrl+Z undo · Ctrl+C/V copy-paste keyframe · drag parts in the preview to animate</p>
+        <div class="btnrow">
+          <button id="welcome-demo" class="primary">🐑 Load demo sheep</button>
+          <button id="welcome-import">Import textures…</button>
+          <button id="welcome-new">New project</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: inspector -->
+  <section class="pane" id="right-pane">
+    <div class="card">
+      <h3>Project</h3>
+      <div class="field"><label>Canvas W×H</label><div class="fieldrow">
+        <input type="number" id="prj-w" min="1" max="4096" step="1"><input type="number" id="prj-h" min="1" max="4096" step="1">
+      </div></div>
+      <div class="hint-text">Reference frame for preview &amp; export (px).</div>
+    </div>
+    <div class="card">
+      <h3>Animation</h3>
+      <div class="field"><label>Name</label><input type="text" id="anim-name"></div>
+      <div class="field"><label>FPS</label><input type="number" id="anim-fps" min="1" max="240" step="1"></div>
+      <div class="field"><label>Length</label><input type="number" id="anim-len" min="1" max="9999" step="1"></div>
+      <div class="field"><label>Loop</label><input type="checkbox" id="anim-loop" style="flex:0"></div>
+      <div class="btnrow2">
+        <button id="anim-dup">Duplicate</button>
+        <button id="anim-rename">Rename</button>
+        <button id="anim-del" class="danger">Delete</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Part</h3>
+      <div id="part-card">
+        <div class="kv"><span>Texture</span><b id="part-texture">—</b></div>
+        <div class="field"><label>Name</label><input type="text" id="part-name"></div>
+        <div class="field"><label>Pivot X,Y</label><div class="fieldrow">
+          <input type="number" id="pivot-x" step="0.5"><input type="number" id="pivot-y" step="0.5">
+        </div></div>
+        <div class="hint-text">Pivot = rotation origin, in texture-local px. Drag the crosshair in the preview to set it visually.</div>
+        <div class="field" style="margin-top:6px"><label>Rest X,Y</label><div class="fieldrow">
+          <input type="number" id="rest-x" step="0.5"><input type="number" id="rest-y" step="0.5">
+        </div></div>
+        <div class="field"><label>Rest Rot°</label><input type="number" id="rest-rot" step="1"></div>
+        <div class="hint-text">Rest pose is used before any keyframe exists on a row.</div>
+        <div class="field" style="margin-top:6px"><label>Z-order</label><div class="fieldrow">
+          <input type="number" id="part-z" step="1" style="flex:0; width:60px">
+          <button id="z-up" title="Draw in front">▲</button>
+          <button id="z-down" title="Draw behind">▼</button>
+        </div></div>
+        <div class="btnrow2"><button id="part-del" class="danger">Delete part</button></div>
+      </div>
+      <div id="part-none" class="hint-text">No part selected. Click a row in the timeline to select a part.</div>
+    </div>
+    <div class="card">
+      <h3>Keyframe</h3>
+      <div id="kf-card">
+        <div class="kv"><span>Part</span><b id="kf-part">—</b></div>
+        <div class="field"><label>Frame</label><input type="number" id="kf-frame" min="0" step="1"></div>
+        <div class="field"><label>X</label><input type="number" id="kf-x" step="0.5"></div>
+        <div class="field"><label>Y</label><input type="number" id="kf-y" step="0.5"></div>
+        <div class="field"><label>Rotation°</label><input type="number" id="kf-rot" step="1"></div>
+        <div class="btnrow2">
+          <button id="kf-copy">Copy</button>
+          <button id="kf-paste" title="Paste into this part's row at the playhead frame">Paste</button>
+          <button id="kf-del" class="danger">Delete</button>
+        </div>
+        <div class="hint-text">Click an empty cell to create a keyframe (prefilled with the interpolated value). Drag keyframes along the row to move them. X/Y is the pivot offset from canvas center; Y grows downward.</div>
+      </div>
+      <div id="kf-none" class="hint-text">No keyframe selected. Click a cell or diamond in the timeline.</div>
+    </div>
+  </section>
+</main>
+
+<div id="modal-root"><div class="modal" id="modal-box"></div></div>
+<div id="drop-overlay">Drop images to import as parts, or a .json project to open it</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   PixRig — tiny 2D skeleton / sprite animation tool.
+   Data model: project = { version, name, canvasSize, parts[], animations[] }
+   Part      : { id, texture (filename), textureData (dataURL), pivot{x,y}, rest{x,y,rotation}, zIndex }
+   Animation : { name, fps, lengthInFrames, loop, tracks: { partId: [{frame,x,y,rotation}] } }
+   Transform (x,y) = pivot offset from canvas center; y grows downward.
+   ===================================================================== */
+
+/* ---------------- utils ---------------- */
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rad = (d) => d * Math.PI / 180;
+const deg = (r) => r * 180 / Math.PI;
+const lerp = (a, b, t) => a + (b - a) * t;
+function lerpAngle(a, b, t) {           // shortest angular path, degrees
+  let d = (b - a) % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return a + d * t;
+}
+function rotVec(x, y, radAngle) {
+  const c = Math.cos(radAngle), s = Math.sin(radAngle);
+  return { x: x * c - y * s, y: x * s + y * c };
+}
+function sanitizeId(name) {
+  let s = name.replace(/\.(png|jpg|jpeg|gif|webp|bmp)$/i, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return s || "part";
+}
+function uniqueId(base, existing) {
+  let id = base, i = 2;
+  while (existing.has(id)) id = base + "_" + (i++);
+  return id;
+}
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function downloadBlob(name, blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+function downloadCanvas(name, canvas) {
+  canvas.toBlob((b) => b && downloadBlob(name, b), "image/png");
+}
+function makeCanvas(w, h) { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
+
+/* ---------------- data model ---------------- */
+function newProject() {
+  return {
+    version: 1,
+    name: "untitled",
+    canvasSize: { width: 64, height: 64 },
+    parts: [],
+    animations: [{ name: "idle", fps: 12, lengthInFrames: 24, loop: true, tracks: {} }],
+  };
+}
+const state = {
+  project: null,
+  playhead: 0,
+  playing: false,
+  selectedPartId: null,
+  selectedKeyframe: null,     // {partId, frame}
+  copiedKeyframe: null,       // {x, y, rotation}
+  zoom: 6, panX: 0, panY: 0,
+  onionSkin: false,
+  guide: true,
+  undoStack: [], redoStack: [],
+  imageCache: new Map(),
+  drag: null,                 // current drag interaction
+};
+const curAnim = () => state.project.animations.find((a) => a.name === state.animName) || state.project.animations[0];
+function setAnimName(n) { state.animName = n; }
+function sortedParts() { return [...state.project.parts].sort((a, b) => a.zIndex - b.zIndex); }
+function partById(id) { return state.project.parts.find((p) => p.id === id) || null; }
+function ensureTrack(anim, partId) { if (!anim.tracks[partId]) anim.tracks[partId] = []; return anim.tracks[partId]; }
+function setKeyframe(anim, partId, frame, vals) {
+  const t = ensureTrack(anim, partId);
+  const i = t.findIndex((k) => k.frame === frame);
+  if (i >= 0) t[i] = { frame, ...vals };
+  else t.push({ frame, ...vals });
+  t.sort((a, b) => a.frame - b.frame);
+  return t.find((k) => k.frame === frame);
+}
+function removeKeyframe(anim, partId, frame) {
+  const t = anim.tracks[partId];
+  if (!t) return;
+  const i = t.findIndex((k) => k.frame === frame);
+  if (i >= 0) t.splice(i, 1);
+  if (!t.length) delete anim.tracks[partId];
+}
+function moveKeyframe(anim, partId, from, to) {
+  const t = ensureTrack(anim, partId);
+  const kf = t.find((k) => k.frame === from);
+  if (!kf || to === from) return;
+  removeKeyframe(anim, partId, to);          // dragged keyframe replaces whatever was at target
+  kf.frame = to;
+  t.sort((a, b) => a.frame - b.frame);
+}
+/* Interpolated transform of a part at a (possibly fractional) frame.
+   Before the first keyframe: rest pose. After the last: hold last. */
+function getPartTransform(anim, partId, frame) {
+  const part = partById(partId);
+  const t = anim.tracks[partId] || [];
+  if (!part) return { x: 0, y: 0, rotation: 0 };
+  if (!t.length) return { ...part.rest };
+  let prev = null, next = null;
+  for (const k of t) { if (k.frame <= frame) prev = k; else { next = k; break; } }
+  if (!prev) return { ...part.rest };
+  if (!next) return { x: prev.x, y: prev.y, rotation: prev.rotation };
+  const tt = (frame - prev.frame) / (next.frame - prev.frame);
+  return { x: lerp(prev.x, next.x, tt), y: lerp(prev.y, next.y, tt), rotation: lerpAngle(prev.rotation, next.rotation, tt) };
+}
+
+/* ---------------- undo / redo ---------------- */
+function pushUndo() {
+  state.undoStack.push(JSON.stringify(state.project));
+  if (state.undoStack.length > 80) state.undoStack.shift();
+  state.redoStack.length = 0;
+}
+function withUndo(fn) { pushUndo(); fn(); refresh(); }
+function undo() {
+  if (!state.undoStack.length) return;
+  state.redoStack.push(JSON.stringify(state.project));
+  state.project = JSON.parse(state.undoStack.pop());
+  state.selectedKeyframe = null;
+  refresh();
+}
+function redo() {
+  if (!state.redoStack.length) return;
+  state.undoStack.push(JSON.stringify(state.project));
+  state.project = JSON.parse(state.redoStack.pop());
+  state.selectedKeyframe = null;
+  refresh();
+}
+
+/* ---------------- images ---------------- */
+function imgKey(part) { return part.textureData || part.texture; }
+function getImage(part) { return state.imageCache.get(imgKey(part)) || null; }
+function loadImage(src) {
+  return new Promise((resolve) => {
+    const cached = state.imageCache.get(src);
+    if (cached) return resolve(cached);
+    const im = new Image();
+    im.onload = () => { state.imageCache.set(src, im); resolve(im); };
+    im.onerror = () => resolve(null);
+    im.src = src;
+  });
+}
+function canvasToDataURL(c) { return c.toDataURL("image/png"); }
+
+/* ---------------- demo sheep ---------------- */
+function px(ctx, x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); }
+const OUT = "#c9c3b8", WOOL = "#f4f2ec", SHADE = "#e3ddd1", DARK = "#38383e", BROWN = "#6d4c33", BROWN_DK = "#48301f", BROWN_LT = "#8a6646";
+
+function sheepBodyTex() {
+  const c = makeCanvas(32, 22), g = c.getContext("2d");
+  const out = [[3,0,26,1],[1,1,30,1],[0,2,32,18],[1,20,30,1],[3,21,26,1]];
+  for (const [x,y,w,h] of out) px(g, x, y, w, h, OUT);
+  px(g, 2, 1, 28, 1, WOOL); px(g, 1, 2, 30, 18, WOOL); px(g, 2, 20, 28, 1, WOOL);
+  px(g, 4, 18, 24, 1, SHADE); px(g, 2, 19, 28, 1, SHADE);
+  return c;
+}
+function sheepHeadTex() {
+  const c = makeCanvas(18, 14), g = c.getContext("2d");
+  const out = [[4,0,10,1],[2,1,14,1],[1,2,16,10],[2,12,14,1],[4,13,10,1]];
+  for (const [x,y,w,h] of out) px(g, x, y, w, h, OUT);
+  px(g, 3, 1, 12, 1, WOOL); px(g, 2, 2, 14, 10, WOOL); px(g, 3, 12, 12, 1, WOOL);
+  px(g, 11, 3, 5, 8, DARK);          // face
+  px(g, 9, 5, 1, 2, "#ffffff");      // eye
+  px(g, 13, 5, 2, 1, "#5b5b63");
+  return c;
+}
+function sheepLegTex() {
+  const c = makeCanvas(7, 12), g = c.getContext("2d");
+  px(g, 1, 0, 5, 1, OUT); px(g, 0, 1, 7, 10, OUT); px(g, 1, 11, 5, 1, OUT);
+  px(g, 1, 1, 5, 1, BROWN); px(g, 1, 2, 5, 8, BROWN);
+  px(g, 1, 9, 5, 3, BROWN_DK);
+  px(g, 1, 2, 1, 6, BROWN_LT);
+  return c;
+}
+function loadDemoSheep() {
+  const project = newProject();
+  project.name = "sheep";
+  project.canvasSize = { width: 64, height: 64 };
+  const tex = {
+    body: sheepBodyTex(), head: sheepHeadTex(),
+    leg_fl: sheepLegTex(), leg_fr: sheepLegTex(), leg_bl: sheepLegTex(), leg_br: sheepLegTex(),
+  };
+  const defs = [
+    { id: "body", tex: "body", pivot: [16, 11], rest: [0, 0, 0], z: 0 },
+    { id: "leg_bl", tex: "leg_bl", pivot: [3, 0], rest: [4, 12, 0], z: 1 },
+    { id: "leg_br", tex: "leg_br", pivot: [3, 0], rest: [11, 12, 0], z: 2 },
+    { id: "leg_fl", tex: "leg_fl", pivot: [3, 0], rest: [-11, 12, 0], z: 3 },
+    { id: "leg_fr", tex: "leg_fr", pivot: [3, 0], rest: [-4, 12, 0], z: 4 },
+    { id: "head", tex: "head", pivot: [3, 7], rest: [15, -5, 0], z: 5 },
+  ];
+  for (const d of defs) {
+    project.parts.push({
+      id: d.id, texture: d.id + ".png", textureData: canvasToDataURL(tex[d.tex]),
+      pivot: { x: d.pivot[0], y: d.pivot[1] }, rest: { x: d.rest[0], y: d.rest[1], rotation: d.rest[2] }, zIndex: d.z,
+    });
+  }
+  const kf = (anim, part, frame, x, y, r) => setKeyframe(anim, part, frame, { x, y, rotation: r });
+  const walk = { name: "walk", fps: 12, lengthInFrames: 24, loop: true, tracks: {} };
+  for (const f of [0, 6, 12, 18]) {
+    kf(walk, "leg_fl", f, -11, 12, -24); kf(walk, "leg_bl", f, 4, 12, -24);
+    kf(walk, "leg_fr", f, -4, 12, 24);  kf(walk, "leg_br", f, 11, 12, 24);
+    kf(walk, "body", f, 0, f % 12 === 0 ? 0 : -1.5, 0);
+    kf(walk, "head", f, 15, -5, f % 12 === 0 ? 2 : -3);
+  }
+  // flip front/back legs half a cycle later so opposing diagonals alternate
+  for (const f of [0, 6, 12, 18]) {
+    const amp = (f % 12 === 0) ? 24 : -24;
+    kf(walk, "leg_fr", f, -4, 12, amp); kf(walk, "leg_br", f, 11, 12, amp);
+    kf(walk, "leg_fl", f, -11, 12, -amp); kf(walk, "leg_bl", f, 4, 12, -amp);
+  }
+  const idle = { name: "idle", fps: 8, lengthInFrames: 16, loop: true, tracks: {} };
+  for (const f of [0, 4, 8, 12]) {
+    kf(idle, "body", f, 0, f % 8 === 0 ? 0 : 1, 0);
+    kf(idle, "head", f, 15, -5, f % 8 === 0 ? 0 : -4);
+  }
+  project.animations = [idle, walk];
+  return project;
+}
+
+/* ---------------- rendering: toolbar / tabs ---------------- */
+function refresh() {
+  renderToolbar(); renderTabs(); renderTimeline(); renderPreview(); renderInspector();
+  $("welcome").hidden = state.project.parts.length > 0;
+}
+function renderToolbar() {
+  $("project-name").value = state.project.name;
+  $("btn-undo").disabled = !state.undoStack.length;
+  $("btn-redo").disabled = !state.redoStack.length;
+}
+function renderTabs() {
+  const wrap = $("anim-tabs");
+  wrap.innerHTML = "";
+  state.project.animations.forEach((a) => {
+    const el = document.createElement("div");
+    el.className = "tab" + (a.name === state.animName ? " active" : "");
+    const label = document.createElement("span");
+    label.textContent = a.name;
+    label.addEventListener("click", () => { setAnimName(a.name); state.selectedKeyframe = null; refresh(); });
+    el.appendChild(label);
+    const del = document.createElement("span");
+    del.className = "del"; del.textContent = "✕"; del.title = "Delete animation";
+    del.addEventListener("click", (e) => { e.stopPropagation(); deleteAnimation(a.name); });
+    el.appendChild(del);
+    wrap.appendChild(el);
+  });
+}
+
+/* ---------------- timeline ---------------- */
+const CELL_W = 26, ROW_H = 34;
+
+function renderTimeline() {
+  const anim = curAnim();
+  const rowsEl = $("tl-rows");
+  const rulerCells = $("tl-ruler-cells");
+  // ruler
+  rulerCells.innerHTML = "";
+  const len = anim.lengthInFrames;
+  rulerCells.style.width = len * CELL_W + "px";
+  for (let f = 0; f < len; f++) {
+    if (f % 5 === 0 || len <= 12) {
+      const n = document.createElement("div");
+      n.className = "tl-ruler-num";
+      n.textContent = f;
+      n.style.left = (f * CELL_W + CELL_W / 2) + "px";
+      rulerCells.appendChild(n);
+    }
+  }
+  const tri = document.createElement("div");
+  tri.className = "tl-playhead-tri";
+  tri.style.left = (state.playhead * CELL_W + CELL_W / 2) + "px";
+  rulerCells.appendChild(tri);
+  // rows
+  rowsEl.innerHTML = "";
+  const parts = sortedParts();
+  for (const part of parts) {
+    const row = document.createElement("div");
+    row.className = "tl-part-row" + (part.id === state.selectedPartId ? " sel" : "");
+    // header
+    const head = document.createElement("div");
+    head.className = "tl-head";
+    const thumb = document.createElement("canvas");
+    thumb.className = "thumb";
+    const im = getImage(part);
+    if (im) {
+      thumb.width = 26; thumb.height = 26;
+      const g = thumb.getContext("2d");
+      g.imageSmoothingEnabled = false;
+      const s = Math.min(24 / im.width, 24 / im.height);
+      const dw = im.width * s, dh = im.height * s;
+      g.drawImage(im, (26 - dw) / 2, (26 - dh) / 2, dw, dh);
+    }
+    const name = document.createElement("span");
+    name.className = "pname"; name.textContent = part.id;
+    name.title = "Click to select part";
+    const zbtns = document.createElement("span");
+    zbtns.className = "zbtns";
+    const zUp = document.createElement("button"); zUp.textContent = "▲"; zUp.title = "Draw in front";
+    const zDn = document.createElement("button"); zDn.textContent = "▼"; zDn.title = "Draw behind";
+    zUp.addEventListener("click", (e) => { e.stopPropagation(); withUndo(() => { part.zIndex += 1; }); });
+    zDn.addEventListener("click", (e) => { e.stopPropagation(); withUndo(() => { part.zIndex -= 1; }); });
+    zbtns.appendChild(zUp); zbtns.appendChild(zDn);
+    head.appendChild(thumb); head.appendChild(name); head.appendChild(zbtns);
+    head.addEventListener("click", () => { state.selectedPartId = part.id; refresh(); });
+    // cells
+    const cells = document.createElement("div");
+    cells.className = "tl-cells" + (part.id === state.selectedPartId ? " selrow" : "");
+    cells.style.width = len * CELL_W + "px";
+    cells.dataset.partId = part.id;
+    const track = anim.tracks[part.id] || [];
+    for (let i = 0; i + 1 < track.length; i++) {
+      const a = track[i], b = track[i + 1];
+      const line = document.createElement("div");
+      line.className = "kf-line";
+      line.style.left = (a.frame * CELL_W + CELL_W / 2) + "px";
+      line.style.width = Math.max(0, (b.frame - a.frame) * CELL_W) + "px";
+      cells.appendChild(line);
+    }
+    for (const kf of track) {
+      const el = document.createElement("div");
+      const sel = state.selectedKeyframe && state.selectedKeyframe.partId === part.id && state.selectedKeyframe.frame === kf.frame;
+      el.className = "kf" + (sel ? " sel" : "");
+      el.style.left = (kf.frame * CELL_W + CELL_W / 2 - 6) + "px";
+      el.dataset.partId = part.id;
+      el.dataset.frame = kf.frame;
+      cells.appendChild(el);
+    }
+    const ph = document.createElement("div");
+    ph.className = "tl-playhead-line";
+    ph.style.left = (state.playhead * CELL_W + CELL_W / 2 - 1) + "px";
+    cells.appendChild(ph);
+    row.appendChild(head); row.appendChild(cells);
+    rowsEl.appendChild(row);
+  }
+}
+
+/* timeline pointer interactions (delegated) */
+$("tl-scroll").addEventListener("mousedown", (e) => {
+  if (e.button !== 0) return;
+  const el = e.target;
+  const cells = el.closest(".tl-cells");
+  const ruler = el.closest(".tl-ruler-cells");
+  if (ruler) {
+    startScrub(e, ruler);
+  } else if (cells) {
+    const partId = cells.dataset.partId;
+    const anim = curAnim();
+    const kfEl = el.closest(".kf");
+    const inner = cells.getBoundingClientRect();
+    const x = e.clientX - inner.left;
+    const frame = clamp(Math.floor(x / CELL_W), 0, anim.lengthInFrames - 1);
+    if (kfEl) {
+      state.selectedKeyframe = { partId, frame: +kfEl.dataset.frame };
+      state.selectedPartId = partId;
+      state.playhead = +kfEl.dataset.frame;
+      startKfDrag(e, partId, +kfEl.dataset.frame);
+      refresh();
+    } else {
+      withUndo(() => {
+        const anim2 = curAnim();
+        const t = getPartTransform(anim2, partId, frame);
+        const vals = { x: Math.round(t.x * 100) / 100, y: Math.round(t.y * 100) / 100, rotation: Math.round(t.rotation * 100) / 100 };
+        const kf = setKeyframe(anim2, partId, frame, vals);
+        state.selectedKeyframe = { partId, frame };
+        state.selectedPartId = partId;
+        state.playhead = frame;
+      });
+      ensurePlayheadVisible();
+    }
+  }
+});
+$("tl-scroll").addEventListener("contextmenu", (e) => {
+  const kfEl = e.target.closest(".kf");
+  if (kfEl) {
+    e.preventDefault();
+    withUndo(() => removeKeyframe(curAnim(), kfEl.dataset.partId, +kfEl.dataset.frame));
+    if (state.selectedKeyframe && state.selectedKeyframe.frame === +kfEl.dataset.frame) state.selectedKeyframe = null;
+  }
+});
+function startScrub(e, ruler) {
+  const anim = curAnim();
+  const set = (ev) => {
+    const r = ruler.getBoundingClientRect();
+    const x = ev.clientX - r.left;
+    state.playhead = clamp(Math.floor(x / CELL_W), 0, anim.lengthInFrames - 1);
+    renderTimeline(); renderPreview(); renderInspector();
+    ensurePlayheadVisible();
+  };
+  set(e);
+  const move = (ev) => { ev.preventDefault(); set(ev); };
+  const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", up);
+}
+function startKfDrag(e, partId, from) {
+  const anim = curAnim();
+  const kf = (anim.tracks[partId] || []).find((k) => k.frame === from);
+  if (!kf) return;
+  pushUndo();
+  const cell = e.target.closest(".tl-cells");
+  const base = cell.getBoundingClientRect();
+  const move = (ev) => {
+    const x = ev.clientX - base.left;
+    const f = clamp(Math.round((x - CELL_W / 2) / CELL_W), 0, 9999);
+    if (f !== kf.frame) {
+      kf.frame = f;
+      if (f > anim.lengthInFrames - 1) anim.lengthInFrames = f + 1;
+      renderTimeline();
+    }
+  };
+  const up = () => {
+    window.removeEventListener("mousemove", move);
+    window.removeEventListener("mouseup", up);
+    const t = ensureTrack(anim, partId).sort((a, b) => a.frame - b.frame);
+    const dup = t.findIndex((k, i) => i > 0 && k.frame === t[i - 1].frame);
+    if (dup > 0) t.splice(dup, 1);                       // resolve overlap: keep dragged (first of the pair)
+    if (state.selectedKeyframe) state.selectedKeyframe.frame = kf.frame;
+    renderTimeline(); renderInspector();
+  };
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", up);
+}
+function ensurePlayheadVisible() {
+  const sc = $("tl-scroll");
+  const x = state.playhead * CELL_W + CELL_W / 2 + 172;
+  if (x < sc.scrollLeft + 60) sc.scrollLeft = Math.max(0, x - 60);
+  else if (x > sc.scrollLeft + sc.clientWidth - 60) sc.scrollLeft = x - sc.clientWidth + 60;
+}
+
+/* ---------------- preview ---------------- */
+const pv = $("preview");
+const pvCtx = pv.getContext("2d");
+let checkerPat = null;
+function makeChecker() {
+  const c = makeCanvas(16, 16), g = c.getContext("2d");
+  g.fillStyle = "#191a1f"; g.fillRect(0, 0, 16, 16);
+  g.fillStyle = "#1f2026"; g.fillRect(0, 0, 8, 8); g.fillRect(8, 8, 8, 8);
+  checkerPat = pvCtx.createPattern(c, "repeat");
+}
+function fitZoom() {
+  const { width: W, height: H } = state.project.canvasSize;
+  const aw = pv.clientWidth - 40, ah = pv.clientHeight - 40;
+  state.zoom = clamp(Math.floor(Math.min(aw / W, ah / H)), 1, 64);
+  centerPan();
+}
+function centerPan() {
+  const { width: W, height: H } = state.project.canvasSize;
+  state.panX = (pv.clientWidth - W * state.zoom) / 2;
+  state.panY = (pv.clientHeight - H * state.zoom) / 2;
+}
+function drawProjectFrame(ctx, frameFloat, opts = {}) {
+  const { width: W, height: H } = state.project.canvasSize;
+  const { alpha = 1, gizmos = true, clear = true } = opts;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.imageSmoothingEnabled = false;
+  ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+  if (clear) ctx.clearRect(0, 0, W, H);
+  const anim = curAnim();
+  for (const part of sortedParts()) {
+    const im = getImage(part);
+    if (!im) continue;
+    const t = getPartTransform(anim, part.id, frameFloat);
+    ctx.save();
+    ctx.translate(W / 2 + t.x, H / 2 + t.y);
+    ctx.rotate(rad(t.rotation));
+    ctx.drawImage(im, -part.pivot.x, -part.pivot.y);
+    ctx.restore();
+  }
+  ctx.restore();
+  if (gizmos) drawGizmos(ctx, frameFloat, alpha);
+}
+function drawGizmos(ctx, frameFloat, alpha) {
+  if (!state.selectedPartId || alpha < 1) return;
+  const { width: W, height: H } = state.project.canvasSize;
+  const part = partById(state.selectedPartId);
+  if (!part) return;
+  const t = getPartTransform(curAnim(), part.id, frameFloat);
+  const cx = W / 2 + t.x, cy = H / 2 + t.y;
+  const r = rad(t.rotation);
+  const hr = rotVec(26, 0, r);
+  const hx = cx + hr.x, hy = cy + hr.y;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = "#ff5d5d"; ctx.fillStyle = "#ff5d5d";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx - 6, cy); ctx.lineTo(cx + 6, cy); ctx.moveTo(cx, cy - 6); ctx.lineTo(cx, cy + 6); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
+  // rotate handle
+  ctx.strokeStyle = "#ffcf5d";
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(hx, hy); ctx.stroke();
+  ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2); ctx.fillStyle = "#ffcf5d"; ctx.fill();
+  ctx.restore();
+}
+function renderPreview() {
+  const cw = pv.clientWidth, ch = pv.clientHeight;
+  if (!cw || !ch) return;
+  if (pv.width !== cw) pv.width = cw;
+  if (pv.height !== ch) pv.height = ch;
+  if (!checkerPat) makeChecker();
+  const { width: W, height: H } = state.project.canvasSize;
+  const anim = curAnim();
+  pvCtx.setTransform(1, 0, 0, 1, 0, 0);
+  pvCtx.clearRect(0, 0, cw, ch);
+  pvCtx.setTransform(state.zoom, 0, 0, state.zoom, state.panX, state.panY);
+  // checkerboard in world space
+  pvCtx.fillStyle = checkerPat;
+  pvCtx.fillRect(-state.panX / state.zoom - 1, -state.panY / state.zoom - 1, cw / state.zoom + 2, ch / state.zoom + 2);
+  // onion skins
+  if (state.onionSkin && !state.playing) {
+    const f = state.playhead;
+    const prev = f - 1 < 0 ? (anim.loop ? anim.lengthInFrames - 1 : null) : f - 1;
+    const next = f + 1 >= anim.lengthInFrames ? (anim.loop ? 0 : null) : f + 1;
+    if (prev != null) drawProjectFrame(pvCtx, prev, { alpha: 0.25, gizmos: false, clear: false });
+    if (next != null) drawProjectFrame(pvCtx, next, { alpha: 0.25, gizmos: false, clear: false });
+  }
+  drawProjectFrame(pvCtx, state.playhead, { alpha: 1, clear: false });
+  if (state.guide) {
+    pvCtx.save();
+    pvCtx.setTransform(state.zoom, 0, 0, state.zoom, state.panX, state.panY);
+    pvCtx.strokeStyle = "rgba(79,140,255,.75)";
+    pvCtx.lineWidth = 1 / state.zoom;
+    pvCtx.strokeRect(0.5, 0.5, W - 1, H - 1);
+    pvCtx.restore();
+  }
+  $("zoom-readout").textContent = Math.round(state.zoom * 100) + "%";
+  $("frame-readout").textContent = state.playhead + " / " + anim.lengthInFrames + " · " + Math.round(state.playhead * 1000 / anim.fps) + " ms";
+  $("frame-input").value = state.playhead;
+}
+
+/* preview pointer interactions */
+function mouseWorld(e) {
+  const r = pv.getBoundingClientRect();
+  return { x: (e.clientX - r.left - state.panX) / state.zoom, y: (e.clientY - r.top - state.panY) / state.zoom };
+}
+function hitTest(mw) {
+  const anim = curAnim();
+  const parts = sortedParts();
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    const im = getImage(part);
+    if (!im) continue;
+    const t = getPartTransform(anim, part.id, state.playhead);
+    const dx = mw.x - (state.project.canvasSize.width / 2 + t.x);
+    const dy = mw.y - (state.project.canvasSize.height / 2 + t.y);
+    const rr = rad(t.rotation);
+    const lx = dx * Math.cos(rr) + dy * Math.sin(rr) + part.pivot.x;
+    const ly = -dx * Math.sin(rr) + dy * Math.cos(rr) + part.pivot.y;
+    if (lx >= -2 && lx < im.width + 2 && ly >= -2 && ly < im.height + 2) return part;
+  }
+  return null;
+}
+pv.addEventListener("mousedown", (e) => {
+  if (e.button !== 0 && e.button !== 1) return;
+  if (e.button === 1) {   // middle button always pans
+    state.drag = { type: "pan", start: { x: e.clientX, y: e.clientY }, panX: state.panX, panY: state.panY };
+    pv.classList.add("panning");
+    pv.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    return;
+  }
+  const mw = mouseWorld(e);
+  const anim = curAnim();
+  // rotate handle of selected part
+  if (state.selectedPartId) {
+    const part = partById(state.selectedPartId);
+    const t = getPartTransform(anim, part.id, state.playhead);
+    const cx = state.project.canvasSize.width / 2 + t.x, cy = state.project.canvasSize.height / 2 + t.y;
+    const hr = rotVec(26, 0, rad(t.rotation));
+    if (Math.hypot(mw.x - (cx + hr.x), mw.y - (cy + hr.y)) < 9 / state.zoom) {
+      pushUndo();
+      ensureKfAtPlayhead(part.id);
+      state.drag = { type: "rotate", partId: part.id };
+      pv.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
+    // pivot crosshair
+    if (Math.hypot(mw.x - cx, mw.y - cy) < 7 / state.zoom) {
+      pushUndo();
+      state.drag = { type: "pivot", partId: part.id, start: mw, px: part.pivot.x, py: part.pivot.y };
+      pv.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
+  }
+  const hit = hitTest(mw);
+  if (hit) {
+    state.selectedPartId = hit.id;
+    pushUndo();
+    const kf = ensureKfAtPlayhead(hit.id);
+    state.drag = { type: "move", partId: hit.id, start: mw, x0: kf.x, y0: kf.y };
+    pv.setPointerCapture(e.pointerId);
+    renderInspector();
+  } else {
+    state.drag = { type: "pan", start: { x: e.clientX, y: e.clientY }, panX: state.panX, panY: state.panY };
+    pv.classList.add("panning");
+    pv.setPointerCapture(e.pointerId);
+  }
+  e.preventDefault();
+});
+function ensureKfAtPlayhead(partId) {
+  const anim = curAnim();
+  const t = ensureTrack(anim, partId);
+  const f = state.playhead;
+  const existing = t.find((k) => k.frame === f);
+  if (existing) { state.selectedKeyframe = { partId, frame: f }; return existing; }
+  const tr = getPartTransform(anim, partId, f);
+  const kf = setKeyframe(anim, partId, f, {
+    x: Math.round(tr.x * 100) / 100, y: Math.round(tr.y * 100) / 100, rotation: Math.round(tr.rotation * 100) / 100,
+  });
+  state.selectedKeyframe = { partId, frame: f };
+  return kf;
+}
+pv.addEventListener("mousemove", (e) => {
+  const d = state.drag;
+  if (!d) return;
+  if (d.type === "pan") {
+    state.panX = d.panX + (e.clientX - d.start.x);
+    state.panY = d.panY + (e.clientY - d.start.y);
+    renderPreview();
+  } else {
+    const mw = mouseWorld(e);
+    const anim = curAnim();
+    const part = partById(d.partId);
+    if (!part) return;
+    const kf = (anim.tracks[d.partId] || []).find((k) => k.frame === state.playhead);
+    if (!kf) return;
+    if (d.type === "move") {
+      const r0 = rad(kf.rotation);
+      const ld = rotVec(mw.x - d.start.x, mw.y - d.start.y, r0);
+      kf.x = Math.round((d.x0 + ld.x) * 100) / 100;
+      kf.y = Math.round((d.y0 + ld.y) * 100) / 100;
+    } else if (d.type === "rotate") {
+      const cx = state.project.canvasSize.width / 2 + kf.x, cy = state.project.canvasSize.height / 2 + kf.y;
+      kf.rotation = Math.round(deg(Math.atan2(mw.y - cy, mw.x - cx)) * 100) / 100;
+    } else if (d.type === "pivot") {
+      const t = getPartTransform(anim, d.partId, state.playhead);
+      const rr = rad(t.rotation);
+      const ld = rotVec(mw.x - d.start.x, mw.y - d.start.y, rr);
+      part.pivot.x = Math.round((d.px + ld.x) * 100) / 100;
+      part.pivot.y = Math.round((d.py + ld.y) * 100) / 100;
+    }
+    renderPreview(); renderInspector();
+  }
+});
+function endDrag(e) {
+  state.drag = null;
+  pv.classList.remove("panning");
+  renderPreview(); renderInspector();
+}
+pv.addEventListener("mouseup", endDrag);
+pv.addEventListener("pointercancel", endDrag);
+pv.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const r = pv.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const factor = e.shiftKey ? 1.001 : 1.1;
+  const nz = clamp(state.zoom * (e.deltaY < 0 ? factor : 1 / factor), 0.25, 64);
+  const wx = (mx - state.panX) / state.zoom, wy = (my - state.panY) / state.zoom;
+  state.zoom = nz;
+  state.panX = mx - wx * nz;
+  state.panY = my - wy * nz;
+  renderPreview();
+}, { passive: false });
+
+/* ---------------- playback ---------------- */
+let rafId = null, lastTs = 0, frac = 0;
+function play() {
+  const anim = curAnim();
+  if (state.playing) return;
+  state.playing = true;
+  if (state.playhead >= anim.lengthInFrames - 1) { state.playhead = 0; }
+  lastTs = performance.now(); frac = 0;
+  $("btn-play").textContent = "⏸";
+  loop();
+}
+function loop() {
+  if (!state.playing) return;
+  const anim = curAnim();
+  const now = performance.now();
+  frac += (now - lastTs) / (1000 / anim.fps);
+  lastTs = now;
+  while (frac >= 1) {
+    frac -= 1;
+    state.playhead++;
+    if (state.playhead >= anim.lengthInFrames) {
+      if (anim.loop) state.playhead = 0;
+      else { state.playhead = anim.lengthInFrames - 1; state.playing = false; $("btn-play").textContent = "▶"; break; }
+    }
+  }
+  renderPreview(); renderTimeline();
+  if (state.playing) rafId = requestAnimationFrame(loop);
+}
+function pause() {
+  state.playing = false;
+  $("btn-play").textContent = "▶";
+  if (rafId) cancelAnimationFrame(rafId);
+}
+function stopPlayback() { pause(); state.playhead = 0; refresh(); }
+function setFrame(f) {
+  const anim = curAnim();
+  state.playhead = clamp(Math.round(f), 0, Math.max(0, anim.lengthInFrames - 1));
+  renderPreview(); renderTimeline();
+}
+
+/* ---------------- inspector ---------------- */
+function bindNum(el, get, set, { step = 1, min = -Infinity, max = Infinity } = {}) {
+  el.step = step; el.min = min; el.max = max;
+  el.addEventListener("focus", () => pushUndo());
+  el.addEventListener("input", () => {
+    const v = parseFloat(el.value);
+    if (!isNaN(v)) { set(v); refresh(); }
+  });
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter") el.blur(); });
+}
+function renderInspector() {
+  const anim = curAnim();
+  // project
+  $("prj-w").value = state.project.canvasSize.width;
+  $("prj-h").value = state.project.canvasSize.height;
+  // animation
+  $("anim-name").value = anim.name;
+  $("anim-fps").value = anim.fps;
+  $("anim-len").value = anim.lengthInFrames;
+  $("anim-loop").checked = !!anim.loop;
+  // part
+  const part = state.selectedPartId ? partById(state.selectedPartId) : null;
+  $("part-card").style.display = part ? "" : "none";
+  $("part-none").style.display = part ? "none" : "";
+  if (part) {
+    const im = getImage(part);
+    $("part-texture").textContent = part.texture + (im ? "" : " (missing)");
+    $("part-name").value = part.id;
+    $("pivot-x").value = part.pivot.x;
+    $("pivot-y").value = part.pivot.y;
+    $("rest-x").value = part.rest.x;
+    $("rest-y").value = part.rest.y;
+    $("rest-rot").value = part.rest.rotation;
+    $("part-z").value = part.zIndex;
+  }
+  // keyframe
+  const kf = state.selectedKeyframe ? (anim.tracks[state.selectedKeyframe.partId] || []).find((k) => k.frame === state.selectedKeyframe.frame) : null;
+  $("kf-card").style.display = kf ? "" : "none";
+  $("kf-none").style.display = kf ? "none" : "";
+  if (kf) {
+    $("kf-part").textContent = state.selectedKeyframe.partId;
+    $("kf-frame").value = kf.frame;
+    $("kf-x").value = kf.x;
+    $("kf-y").value = kf.y;
+    $("kf-rot").value = kf.rotation;
+  }
+  // part buttons
+  $("part-del").disabled = !part;
+  $("kf-copy").disabled = !kf; $("kf-paste").disabled = !part; $("kf-del").disabled = !kf;
+}
+/* one-time inspector bindings */
+function bindInspector() {
+  bindNum($("prj-w"), () => state.project.canvasSize.width, (v) => { state.project.canvasSize.width = Math.max(1, Math.round(v)); fitZoom(); }, { min: 1, max: 4096 });
+  bindNum($("prj-h"), () => state.project.canvasSize.height, (v) => { state.project.canvasSize.height = Math.max(1, Math.round(v)); fitZoom(); }, { min: 1, max: 4096 });
+  bindNum($("anim-fps"), () => curAnim().fps, (v) => { curAnim().fps = clamp(Math.round(v), 1, 240); }, { min: 1, max: 240 });
+  bindNum($("anim-len"), () => curAnim().lengthInFrames, (v) => {
+    curAnim().lengthInFrames = clamp(Math.round(v), 1, 9999);
+    if (state.playhead > curAnim().lengthInFrames - 1) state.playhead = curAnim().lengthInFrames - 1;
+  }, { min: 1, max: 9999 });
+  $("anim-loop").addEventListener("change", () => { pushUndo(); curAnim().loop = $("anim-loop").checked; });
+  $("anim-name").addEventListener("change", () => {
+    const name = $("anim-name").value.trim();
+    if (!name || name === curAnim().name) { $("anim-name").value = curAnim().name; return; }
+    if (state.project.animations.some((a) => a.name === name)) { toast("Animation name already exists"); $("anim-name").value = curAnim().name; return; }
+    pushUndo();
+    const old = state.animName;
+    curAnim().name = name;
+    setAnimName(name);
+    renderTabs();
+  });
+  $("part-name").addEventListener("change", () => {
+    const part = state.selectedPartId ? partById(state.selectedPartId) : null;
+    if (!part) return;
+    const name = sanitizeId($("part-name").value);
+    if (!name || name === part.id) { $("part-name").value = part.id; return; }
+    if (state.project.parts.some((p) => p.id === name)) { toast("Part name already exists"); $("part-name").value = part.id; return; }
+    pushUndo();
+    for (const a of state.project.animations) {
+      if (a.tracks[part.id]) { a.tracks[name] = a.tracks[part.id]; delete a.tracks[part.id]; }
+    }
+    const oldId = part.id;
+    part.id = name;
+    if (state.selectedPartId === oldId) state.selectedPartId = name;
+    if (state.selectedKeyframe && state.selectedKeyframe.partId === oldId) state.selectedKeyframe.partId = name;
+    refresh();
+  });
+  bindNum($("pivot-x"), () => state.selectedPartId ? partById(state.selectedPartId).pivot.x : 0, (v) => { const p = partById(state.selectedPartId); if (p) p.pivot.x = v; }, { step: 0.5 });
+  bindNum($("pivot-y"), () => state.selectedPartId ? partById(state.selectedPartId).pivot.y : 0, (v) => { const p = partById(state.selectedPartId); if (p) p.pivot.y = v; }, { step: 0.5 });
+  bindNum($("rest-x"), () => state.selectedPartId ? partById(state.selectedPartId).rest.x : 0, (v) => { const p = partById(state.selectedPartId); if (p) p.rest.x = v; }, { step: 0.5 });
+  bindNum($("rest-y"), () => state.selectedPartId ? partById(state.selectedPartId).rest.y : 0, (v) => { const p = partById(state.selectedPartId); if (p) p.rest.y = v; }, { step: 0.5 });
+  bindNum($("rest-rot"), () => state.selectedPartId ? partById(state.selectedPartId).rest.rotation : 0, (v) => { const p = partById(state.selectedPartId); if (p) p.rest.rotation = v; }, { step: 1 });
+  bindNum($("part-z"), () => state.selectedPartId ? partById(state.selectedPartId).zIndex : 0, (v) => { const p = partById(state.selectedPartId); if (p) p.zIndex = Math.round(v); }, { step: 1 });
+  $("z-up").addEventListener("click", () => { if (state.selectedPartId) withUndo(() => { partById(state.selectedPartId).zIndex += 1; }); });
+  $("z-down").addEventListener("click", () => { if (state.selectedPartId) withUndo(() => { partById(state.selectedPartId).zIndex -= 1; }); });
+  $("part-del").addEventListener("click", () => {
+    const part = state.selectedPartId ? partById(state.selectedPartId) : null;
+    if (!part) return;
+    confirmModal("Delete part", `Delete part "${part.id}" and remove its row from every animation?`, () => {
+      withUndo(() => {
+        state.project.parts = state.project.parts.filter((p) => p.id !== part.id);
+        for (const a of state.project.animations) delete a.tracks[part.id];
+        if (state.selectedPartId === part.id) state.selectedPartId = null;
+        if (state.selectedKeyframe && state.selectedKeyframe.partId === part.id) state.selectedKeyframe = null;
+      });
+    }, true);
+  });
+  bindNum($("kf-frame"), () => state.selectedKeyframe ? state.selectedKeyframe.frame : 0, (v) => {
+    const sk = state.selectedKeyframe; if (!sk) return;
+    const f = Math.max(0, Math.round(v));
+    moveKeyframe(curAnim(), sk.partId, sk.frame, f);
+    if (f > curAnim().lengthInFrames - 1) curAnim().lengthInFrames = f + 1;
+    sk.frame = f;
+  }, { min: 0 });
+  bindNum($("kf-x"), () => state.selectedKeyframe ? kfVal().x : 0, (v) => { const k = kfVal(); if (k) k.x = v; }, { step: 0.5 });
+  bindNum($("kf-y"), () => state.selectedKeyframe ? kfVal().y : 0, (v) => { const k = kfVal(); if (k) k.y = v; }, { step: 0.5 });
+  bindNum($("kf-rot"), () => state.selectedKeyframe ? kfVal().rotation : 0, (v) => { const k = kfVal(); if (k) k.rotation = v; }, { step: 1 });
+  $("kf-copy").addEventListener("click", () => {
+    const k = kfVal(); if (!k) return;
+    state.copiedKeyframe = { x: k.x, y: k.y, rotation: k.rotation };
+    toast("Keyframe copied");
+  });
+  $("kf-paste").addEventListener("click", () => {
+    if (!state.copiedKeyframe) { toast("Nothing copied yet"); return; }
+    const partId = state.selectedPartId;
+    if (!partId) { toast("Select a part row first"); return; }
+    withUndo(() => {
+      setKeyframe(curAnim(), partId, state.playhead, { ...state.copiedKeyframe });
+      state.selectedKeyframe = { partId, frame: state.playhead };
+    });
+  });
+  $("kf-del").addEventListener("click", () => {
+    const sk = state.selectedKeyframe; if (!sk) return;
+    withUndo(() => { removeKeyframe(curAnim(), sk.partId, sk.frame); state.selectedKeyframe = null; });
+  });
+  function kfVal() {
+    const sk = state.selectedKeyframe; if (!sk) return null;
+    return (curAnim().tracks[sk.partId] || []).find((k) => k.frame === sk.frame) || null;
+  }
+}
+
+/* ---------------- animation management ---------------- */
+function addAnimation() {
+  withUndo(() => {
+    const n = uniqueId("anim_" + (state.project.animations.length + 1), new Set(state.project.animations.map((a) => a.name)));
+    state.project.animations.push({ name: n, fps: 12, lengthInFrames: 24, loop: true, tracks: {} });
+    setAnimName(n);
+    state.playhead = 0;
+    state.selectedKeyframe = null;
+  });
+}
+function duplicateAnimation(name) {
+  const src = state.project.animations.find((a) => a.name === name);
+  if (!src) return;
+  withUndo(() => {
+    const n = uniqueId(name + "_copy", new Set(state.project.animations.map((a) => a.name)));
+    state.project.animations.push(JSON.parse(JSON.stringify({ ...src, name: n })));
+    setAnimName(n);
+    state.selectedKeyframe = null;
+  });
+}
+function renameAnimation(name) {
+  promptModal("Rename animation", "New name:", name, (val) => {
+    const n = val.trim();
+    if (!n || n === name) return;
+    if (state.project.animations.some((a) => a.name === n)) { toast("Name already exists"); return; }
+    withUndo(() => {
+      state.project.animations.find((a) => a.name === name).name = n;
+      setAnimName(n);
+    });
+  });
+}
+function deleteAnimation(name) {
+  if (state.project.animations.length <= 1) { toast("Cannot delete the last animation"); return; }
+  confirmModal("Delete animation", `Delete animation "${name}"? This cannot be undone.`, () => {
+    withUndo(() => {
+      state.project.animations = state.project.animations.filter((a) => a.name !== name);
+      if (state.animName === name) { setAnimName(state.project.animations[0].name); state.playhead = 0; }
+      state.selectedKeyframe = null;
+    });
+  }, true);
+}
+
+/* ---------------- import / save / load ---------------- */
+async function importFiles(files) {
+  const images = [...files].filter((f) => f.type.startsWith("image/"));
+  if (!images.length) return;
+  const added = [];
+  const existing = new Set(state.project.parts.map((p) => p.id));
+  for (const f of images) {
+    const url = URL.createObjectURL(f);
+    const im = await loadImage(url);
+    if (!im) continue;
+    const c = makeCanvas(im.naturalWidth, im.naturalHeight);
+    const g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    g.drawImage(im, 0, 0);
+    const dataUrl = canvasToDataURL(c);
+    const id = uniqueId(sanitizeId(f.name), existing);
+    existing.add(id);
+    state.project.parts.push({
+      id,
+      texture: f.name,
+      textureData: dataUrl,
+      pivot: { x: Math.round(im.naturalWidth / 2), y: Math.round(im.naturalHeight / 2) },
+      rest: { x: 0, y: 0, rotation: 0 },
+      zIndex: state.project.parts.length ? Math.max(...state.project.parts.map((p) => p.zIndex)) + 1 : 0,
+    });
+    added.push(id);
+    URL.revokeObjectURL(url);
+  }
+  if (added.length) {
+    state.selectedPartId = added[0];
+    toast(`Imported ${added.length} texture(s): ${added.join(", ")}`);
+    refresh();
+  }
+}
+function saveProject() {
+  const proj = JSON.parse(JSON.stringify(state.project));
+  for (const p of proj.parts) {
+    if (!p.textureData) delete p.textureData;
+    delete p.parentId;
+  }
+  for (const a of proj.animations) {
+    for (const id of proj.parts.map((p) => p.id)) if (!a.tracks[id]) a.tracks[id] = [];
+  }
+  const blob = new Blob([JSON.stringify(proj, null, 2)], { type: "application/json" });
+  downloadBlob((state.project.name || "project").replace(/[^\w\- ]+/g, "_") + ".pixrig.json", blob);
+  toast("Project saved");
+}
+async function loadProject(file) {
+  try {
+    const text = await file.text();
+    const proj = JSON.parse(text);
+    if (!proj || !Array.isArray(proj.parts) || !Array.isArray(proj.animations)) throw new Error("bad shape");
+    proj.version = proj.version || 1;
+    proj.canvasSize = proj.canvasSize || { width: 64, height: 64 };
+    proj.name = proj.name || "untitled";
+    proj.parts = proj.parts.map((p, i) => ({
+      id: String(p.id || "part" + i),
+      texture: p.texture || (p.textureData ? "texture" + i + ".png" : "unknown.png"),
+      textureData: p.textureData || null,
+      pivot: p.pivot || { x: 0, y: 0 },
+      rest: p.rest || { x: 0, y: 0, rotation: 0 },
+      zIndex: p.zIndex != null ? p.zIndex : i,
+    }));
+    proj.animations = proj.animations.map((a) => ({
+      name: a.name || "anim",
+      fps: a.fps || 12,
+      lengthInFrames: a.lengthInFrames || 24,
+      loop: a.loop !== false,
+      tracks: a.tracks || {},
+    }));
+    state.project = proj;
+    setAnimName(proj.animations[0].name);
+    state.playhead = 0;
+    state.selectedPartId = null;
+    state.selectedKeyframe = null;
+    state.undoStack = []; state.redoStack = [];
+    await preloadTextures();
+    refresh();
+    toast(`Opened "${proj.name}"`);
+  } catch (err) {
+    toast("Could not open project: " + err.message);
+  }
+}
+async function preloadTextures() {
+  const jobs = [];
+  for (const p of state.project.parts) {
+    if (p.textureData) jobs.push(loadImage(p.textureData));
+    else jobs.push(loadImage(p.texture));
+  }
+  await Promise.all(jobs);
+}
+function newProjectAction() {
+  state.project = newProject();
+  setAnimName(state.project.animations[0].name);
+  state.selectedPartId = null;
+  state.selectedKeyframe = null;
+  state.playhead = 0;
+  state.undoStack = []; state.redoStack = [];
+  fitZoom();
+  refresh();
+}
+
+/* ---------------- export ---------------- */
+function exportFrames(anim, fpsExport) {
+  const frames = Math.max(1, Math.round(fpsExport * anim.lengthInFrames / anim.fps));
+  const out = [];
+  for (let i = 0; i < frames; i++) {
+    const frameFloat = i / fpsExport * anim.fps;
+    const c = makeCanvas(state.project.canvasSize.width, state.project.canvasSize.height);
+    const g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, c.width, c.height);
+    const savedAnim = state.animName;
+    // draw using the given animation directly (temporarily switch current animation)
+    setAnimName(anim.name);
+    drawProjectFrame(g, frameFloat, { gizmos: false });
+    setAnimName(savedAnim);
+    out.push(c);
+  }
+  return out;
+}
+function renderSheet(frames, layout, columns) {
+  const W = state.project.canvasSize.width, H = state.project.canvasSize.height;
+  const cols = layout === "strip" ? frames.length : clamp(Math.round(columns) || 1, 1, frames.length);
+  const rows = Math.ceil(frames.length / cols);
+  const sheet = makeCanvas(cols * W, rows * H);
+  const g = sheet.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  for (let i = 0; i < frames.length; i++) {
+    g.drawImage(frames[i], (i % cols) * W, Math.floor(i / cols) * H);
+  }
+  return { canvas: sheet, cols, rows };
+}
+function exportModal() {
+  const box = $("modal-box");
+  box.innerHTML = "";
+  const anims = state.project.animations;
+  const body = document.createElement("div");
+  body.className = "modal-body";
+  body.innerHTML = `
+    <div class="field"><label>Animation</label>
+      <select id="ex-anim" style="flex:1"></select></div>
+    <div class="field"><label>Export FPS</label><input type="number" id="ex-fps" min="1" max="240" step="1"></div>
+    <div class="field"><label>Layout</label>
+      <select id="ex-layout" style="flex:1">
+        <option value="grid">Grid (columns)</option>
+        <option value="strip">Horizontal strip</option>
+      </select></div>
+    <div class="field" id="ex-cols-field"><label>Columns</label><input type="number" id="ex-cols" min="1" max="64" step="1"></div>
+    <div class="kv"><span>Frame size</span><b>${state.project.canvasSize.width} × ${state.project.canvasSize.height}px</b></div>
+    <div class="export-prev">
+      <div class="thumb-box"><canvas id="ex-sheet"></canvas><div class="cap" id="ex-sheet-cap"></div></div>
+      <div class="thumb-box"><canvas id="ex-anim-prev" width="192" height="192"></canvas><div class="cap">Animated preview</div></div>
+    </div>`;
+  const foot = document.createElement("div");
+  foot.className = "modal-foot";
+  const cancel = document.createElement("button");
+  cancel.textContent = "Cancel";
+  const doAll = document.createElement("button");
+  doAll.textContent = "Export all animations";
+  const doIt = document.createElement("button");
+  doIt.className = "primary";
+  doIt.textContent = "Export PNG + JSON";
+  foot.appendChild(cancel); foot.appendChild(doAll); foot.appendChild(doIt);
+  box.appendChild(body); box.appendChild(foot);
+  const sel = body.querySelector("#ex-anim");
+  for (const a of anims) {
+    const o = document.createElement("option");
+    o.value = a.name; o.textContent = a.name;
+    sel.appendChild(o);
+  }
+  sel.value = state.animName;
+  const fpsEl = body.querySelector("#ex-fps");
+  fpsEl.value = curAnim().fps;
+  const layoutEl = body.querySelector("#ex-layout");
+  const colsEl = body.querySelector("#ex-cols");
+  const sheetEl = body.querySelector("#ex-sheet");
+  const capEl = body.querySelector("#ex-sheet-cap");
+  const prevEl = body.querySelector("#ex-anim-prev");
+  const colsField = body.querySelector("#ex-cols-field");
+  let frames = [], sheet = null, prevRaf = 0, prevIdx = 0, prevLast = 0;
+  function update() {
+    const anim = anims.find((a) => a.name === sel.value);
+    if (!anim) return;
+    const fps = Math.max(1, Math.round(+fpsEl.value || anim.fps));
+    const layout = layoutEl.value;
+    colsField.style.display = layout === "strip" ? "none" : "";
+    frames = exportFrames(anim, fps);
+    sheet = renderSheet(frames, layout, +colsEl.value || 6);
+    const { cols, rows } = sheet;
+    const scale = Math.min(340 / sheet.canvas.width, 260 / sheet.canvas.height, 4);
+    sheetEl.width = Math.max(1, Math.round(sheet.canvas.width * scale));
+    sheetEl.height = Math.max(1, Math.round(sheet.canvas.height * scale));
+    const g = sheetEl.getContext("2d");
+    g.imageSmoothingEnabled = true;
+    g.drawImage(sheet.canvas, 0, 0, sheetEl.width, sheetEl.height);
+    capEl.textContent = `${frames.length} frames · ${cols}×${rows} · ${fps} fps`;
+  }
+  function prevTick(ts) {
+    if (!frames.length) return;
+    if (ts - prevLast > 1000 / (+fpsEl.value || 12)) {
+      prevLast = ts;
+      prevIdx = (prevIdx + 1) % frames.length;
+      const g = prevEl.getContext("2d");
+      g.imageSmoothingEnabled = false;
+      g.clearRect(0, 0, 192, 192);
+      const W = state.project.canvasSize.width, H = state.project.canvasSize.height;
+      const s = Math.min(192 / W, 192 / H);
+      const ox = (192 - W * s) / 2, oy = (192 - H * s) / 2;
+      g.drawImage(frames[prevIdx], ox, oy, W * s, H * s);
+    }
+    prevRaf = requestAnimationFrame(prevTick);
+  }
+  sel.addEventListener("change", () => { fpsEl.value = anims.find((a) => a.name === sel.value).fps; update(); });
+  fpsEl.addEventListener("input", update);
+  layoutEl.addEventListener("change", update);
+  colsEl.addEventListener("input", update);
+  function close() { cancelAnimationFrame(prevRaf); closeModal(); }
+  cancel.addEventListener("click", close);
+  function doExport(all) {
+    const target = all ? anims : [anims.find((a) => a.name === sel.value)];
+    const fps = Math.max(1, Math.round(+fpsEl.value || curAnim().fps));
+    const layout = layoutEl.value;
+    const cols = +colsEl.value || 6;
+    let i = 0;
+    function next() {
+      if (i >= target.length) { toast("Export complete"); return; }
+      const anim = target[i++];
+      const fr = exportFrames(anim, fps);
+      const sh = renderSheet(fr, layout, cols);
+      const W = state.project.canvasSize.width, H = state.project.canvasSize.height;
+      const meta = {
+        tool: "PixRig", formatVersion: 1,
+        animation: anim.name, fps,
+        frameWidth: W, frameHeight: H, frameCount: fr.length,
+        columns: sh.cols, rows: sh.rows, layout,
+        loop: !!anim.loop,
+        canvasSize: { width: W, height: H },
+      };
+      downloadCanvas(anim.name.replace(/[^\w\- ]+/g, "_") + ".png", sh.canvas);
+      const jb = new Blob([JSON.stringify(meta, null, 2)], { type: "application/json" });
+      downloadBlob(anim.name.replace(/[^\w\- ]+/g, "_") + ".json", jb);
+      setTimeout(next, 350);
+    }
+    close();
+    next();
+  }
+  doIt.addEventListener("click", () => doExport(false));
+  doAll.addEventListener("click", () => doExport(true));
+  update();
+  prevRaf = requestAnimationFrame(prevTick);
+  openModal(box, "Export sprite sheet");
+}
+
+/* ---------------- modals ---------------- */
+function openModal(box, title) {
+  const root = $("modal-root");
+  if (!box.querySelector("h2")) {
+    const h = document.createElement("h2");
+    h.textContent = title || "";
+    box.insertBefore(h, box.firstChild);
+  }
+  root.classList.add("open");
+}
+function closeModal() {
+  $("modal-root").classList.remove("open");
+  $("modal-box").innerHTML = "";
+}
+$("modal-root").addEventListener("mousedown", (e) => {
+  if (e.target === $("modal-root")) closeModal();
+});
+function promptModal(title, label, value, cb) {
+  const box = $("modal-box");
+  box.innerHTML = "";
+  const body = document.createElement("div");
+  body.className = "modal-body";
+  const field = document.createElement("div");
+  field.className = "field";
+  const lab = document.createElement("label");
+  lab.textContent = label;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value;
+  input.style.flex = "1";
+  field.appendChild(lab); field.appendChild(input);
+  body.appendChild(field);
+  const foot = document.createElement("div");
+  foot.className = "modal-foot";
+  const cancel = document.createElement("button"); cancel.textContent = "Cancel";
+  const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK";
+  foot.appendChild(cancel); foot.appendChild(ok);
+  box.appendChild(body); box.appendChild(foot);
+  cancel.addEventListener("click", closeModal);
+  ok.addEventListener("click", () => { cb(input.value); closeModal(); });
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { cb(input.value); closeModal(); } });
+  openModal(box, title);
+  setTimeout(() => { input.focus(); input.select(); }, 30);
+}
+function confirmModal(title, message, onYes, danger) {
+  const box = $("modal-box");
+  box.innerHTML = "";
+  const body = document.createElement("div");
+  body.className = "modal-body";
+  body.textContent = message;
+  const foot = document.createElement("div");
+  foot.className = "modal-foot";
+  const cancel = document.createElement("button"); cancel.textContent = "Cancel";
+  const ok = document.createElement("button"); ok.textContent = danger ? "Delete" : "OK";
+  if (danger) ok.classList.add("danger"); else ok.classList.add("primary");
+  foot.appendChild(cancel); foot.appendChild(ok);
+  box.appendChild(body); box.appendChild(foot);
+  cancel.addEventListener("click", closeModal);
+  ok.addEventListener("click", () => { closeModal(); onYes(); });
+  openModal(box, title);
+}
+
+/* ---------------- toolbar wiring ---------------- */
+function init() {
+  state.project = newProject();
+  setAnimName(state.project.animations[0].name);
+  bindInspector();
+  $("btn-demo").addEventListener("click", () => {
+    state.project = loadDemoSheep();
+    setAnimName("walk");
+    state.selectedPartId = null; state.selectedKeyframe = null; state.playhead = 0;
+    state.undoStack = []; state.redoStack = [];
+    preloadTextures().then(() => { fitZoom(); refresh(); });
+    toast("Demo sheep loaded — press play");
+  });
+  $("welcome-demo").addEventListener("click", () => $("btn-demo").click());
+  $("welcome-import").addEventListener("click", () => $("btn-import").click());
+  $("welcome-new").addEventListener("click", () => { newProjectAction(); });
+  $("btn-import").addEventListener("click", () => $("file-textures").click());
+  $("file-textures").addEventListener("change", (e) => { importFiles(e.target.files); e.target.value = ""; });
+  $("btn-open").addEventListener("click", () => $("file-project").click());
+  $("file-project").addEventListener("change", (e) => { if (e.target.files[0]) loadProject(e.target.files[0]); e.target.value = ""; });
+  $("btn-save").addEventListener("click", saveProject);
+  $("btn-export").addEventListener("click", exportModal);
+  $("project-name").addEventListener("change", () => {
+    state.project.name = $("project-name").value.trim() || "untitled";
+    document.title = state.project.name + " — PixRig";
+  });
+  $("btn-undo").addEventListener("click", undo);
+  $("btn-redo").addEventListener("click", redo);
+  $("tab-add").addEventListener("click", addAnimation);
+  $("anim-dup").addEventListener("click", () => duplicateAnimation(state.animName));
+  $("anim-rename").addEventListener("click", () => renameAnimation(state.animName));
+  $("anim-del").addEventListener("click", () => deleteAnimation(state.animName));
+  // playback
+  $("btn-play").addEventListener("click", () => { state.playing ? pause() : play(); });
+  $("btn-stop").addEventListener("click", stopPlayback);
+  $("btn-prev").addEventListener("click", () => setFrame(state.playhead - 1));
+  $("btn-next").addEventListener("click", () => setFrame(state.playhead + 1));
+  $("btn-frame0").addEventListener("click", () => setFrame(0));
+  $("frame-input").addEventListener("change", () => setFrame(+$("frame-input").value));
+  $("frame-input").addEventListener("keydown", (e) => { if (e.key === "Enter") setFrame(+$("frame-input").value); });
+  // zoom
+  $("btn-zoom-in").addEventListener("click", () => { state.zoom = clamp(state.zoom * 1.25, 0.25, 64); renderPreview(); });
+  $("btn-zoom-out").addEventListener("click", () => { state.zoom = clamp(state.zoom / 1.25, 0.25, 64); renderPreview(); });
+  $("btn-zoom-fit").addEventListener("click", () => { fitZoom(); renderPreview(); });
+  $("onion-toggle").addEventListener("change", () => { state.onionSkin = $("onion-toggle").checked; renderPreview(); });
+  $("guide-toggle").addEventListener("change", () => { state.guide = $("guide-toggle").checked; renderPreview(); });
+  // drag & drop
+  const overlay = $("drop-overlay");
+  let dragDepth = 0;
+  window.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    if ([...e.dataTransfer.types].includes("Files")) { dragDepth++; overlay.classList.add("show"); }
+  });
+  window.addEventListener("dragover", (e) => e.preventDefault());
+  window.addEventListener("dragleave", () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) overlay.classList.remove("show"); });
+  window.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dragDepth = 0; overlay.classList.remove("show");
+    const files = [...e.dataTransfer.files];
+    const proj = files.find((f) => f.name.endsWith(".json"));
+    if (proj) { loadProject(proj); return; }
+    if (files.some((f) => f.type.startsWith("image/"))) importFiles(files);
+  });
+  // keyboard
+  window.addEventListener("keydown", (e) => {
+    const tag = (e.target.tagName || "").toLowerCase();
+    const typing = tag === "input" || tag === "textarea" || tag === "select";
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+    if (mod && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); return; }
+    if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); saveProject(); return; }
+    if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); $("file-project").click(); return; }
+    if (mod && e.key.toLowerCase() === "c") {
+      if (typing) return;
+      const k = kfSelected(); if (k) { state.copiedKeyframe = { x: k.x, y: k.y, rotation: k.rotation }; toast("Keyframe copied"); }
+      return;
+    }
+    if (mod && e.key.toLowerCase() === "v") {
+      if (typing) return;
+      if (state.copiedKeyframe && state.selectedPartId) {
+        withUndo(() => {
+          setKeyframe(curAnim(), state.selectedPartId, state.playhead, { ...state.copiedKeyframe });
+          state.selectedKeyframe = { partId: state.selectedPartId, frame: state.playhead };
+        });
+      }
+      return;
+    }
+    if (e.key === " " && !typing) { e.preventDefault(); state.playing ? pause() : play(); return; }
+    if ((e.key === "Delete" || e.key === "Backspace") && !typing) {
+      const sk = state.selectedKeyframe;
+      if (sk) withUndo(() => { removeKeyframe(curAnim(), sk.partId, sk.frame); state.selectedKeyframe = null; });
+    }
+    if (e.key === "Escape") { closeModal(); }
+  });
+  function kfSelected() {
+    const sk = state.selectedKeyframe; if (!sk) return null;
+    return (curAnim().tracks[sk.partId] || []).find((k) => k.frame === sk.frame) || null;
+  }
+  // resize
+  let rzT = 0;
+  window.addEventListener("resize", () => { clearTimeout(rzT); rzT = setTimeout(() => renderPreview(), 60); });
+  new ResizeObserver(() => renderPreview()).observe($("preview-wrap"));
+  fitZoom();
+  refresh();
+  $("welcome").hidden = false;
+}
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
